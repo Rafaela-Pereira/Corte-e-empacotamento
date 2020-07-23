@@ -1,0 +1,139 @@
+#                                  Problema do corte 2D
+#----------------------------------------------------------------------------------------------------
+#problema de médio porte, dados:
+set.seed(0)
+Nome1<-1:15
+altura1<-round(runif(15,1,8))
+set.seed(1)
+largura1<-round(runif(15,1,8))
+placa<-c(16,20)
+InfoObjeto<-matrix(c( largura1, altura1,Nome1),ncol=3)
+
+#solução inicial aleatória
+set.seed(1)
+Sequencia0<-sample(Nome1,length(Nome1))  
+
+#-------------------------------------------------
+# FUNÇÃO OBJETIVO: CALCULA O DESPERDÍCIO DE ÁREA 
+#DADA UMA SEQUENCIA DE ENTRADA DE itens
+#--------------------------------------------------
+restoArea<-function(Sequencia) 
+{
+InfoObjeto<-InfoObjeto[Sequencia,]
+largura<-InfoObjeto[,1]
+Altura<-InfoObjeto[,2]
+Nome<-InfoObjeto[,3]
+alturasAnalisadas<-rep(0,placa[1])   
+carregado<-c()                  #algoritmo baixo-direita
+for(i in 1:length(Nome))  
+{
+  alturaAnterior<-alturasAnalisadas
+if(max(alturasAnalisadas[1:largura[i]]+Altura[i])<=placa[2])
+ { carregado[i]<-i
+  alturasAnalisadas[1:largura[i]]<-max(alturaAnterior[1:largura[i]])+Altura[i]
+for(j in (largura[i]+1):placa[1] )
+{
+if(alturasAnalisadas[j-1]-alturasAnalisadas[j]>=Altura[i])
+{ alturasAnalisadas[(j-largura[i]+1):j]<-max(alturaAnterior[(j-largura[i]+1):j])+Altura[i]
+  alturasAnalisadas[j-largura[i]]<-alturaAnterior[j-largura[i]]}
+}
+}
+  }
+AreaUtilizada<-sum(InfoObjeto[carregado,1]*InfoObjeto[carregado,2],na.rm=TRUE)
+desperdicio<-placa[1]*placa[2]-AreaUtilizada
+return(desperdicio)
+}
+
+#-----------------------------------------------------------------------
+#                 ALGORITMO SIMULATED ANNEALING
+#------------------------------------------------------------
+Sol<-Sequencia0     #Sol: soluçao inicial/atual
+SolMelhor<-Nome1
+Vizinho<-Sol
+Temperatura<-80
+IterT<-0
+alfa=0.9
+Ttolerancia=10
+set.seed(0)
+Sys.time()
+while(Temperatura>Ttolerancia)
+{
+  while(IterT< 5000)
+  {
+    IterT<-IterT+1
+    Sorteio<-sample(Sol,2)
+    Vizinho[Sorteio[c(1,2)]]<-Vizinho[Sorteio[c(2,1)]] #vizinho aletorio
+    Delta =restoArea(Vizinho)-restoArea(Sol)
+    if( Delta<0)
+    {
+      Sol<-Vizinho 
+      if(restoArea(Vizinho)<restoArea(SolMelhor))
+      {SolMelhor<-Vizinho}
+    }
+    if(Delta>0)
+    {x<-runif(1) 
+    if(x < exp(-Delta/Temperatura))
+    {Sol<-Vizinho}
+    }
+  }
+  Temperatura=Temperatura*alfa
+  IterT<-0
+}
+Sys.time()
+SolMelhor                   #melhor solução encontrada
+
+#-----------------------------------------------------------------
+#       Desenho da disposição dos itens para corte
+#-----------------------------------------------------------
+#informações da solução
+restoAreaInfo<-function(Sequencia) 
+{
+  InfoObjeto<-InfoObjeto[Sequencia,]
+  largura<-InfoObjeto[,1]
+  Altura<-InfoObjeto[,2]
+  Nome<-InfoObjeto[,3]
+  alturasAnalisadas<-rep(0,placa[1])   
+  carregado<-c()                                         #algoritmo baixo-direita
+  for(i in 1:length(Nome))  
+  {
+    alturaAnterior<-alturasAnalisadas
+    if(max(alturasAnalisadas[1:largura[i]]+Altura[i])<=placa[2])
+    { carregado[i]<-i
+    alturasAnalisadas[1:largura[i]]<-max(alturaAnterior[1:largura[i]])+Altura[i]
+    for(j in (largura[i]+1):placa[1] )
+    {
+      if(alturasAnalisadas[j-1]-alturasAnalisadas[j]>=Altura[i])
+      { alturasAnalisadas[(j-largura[i]+1):j]<-max(alturaAnterior[(j-largura[i]+1):j])+Altura[i]
+      alturasAnalisadas[j-largura[i]]<-alturaAnterior[j-largura[i]]}
+    }
+    }
+  }
+  AreaUtilizada<-sum(InfoObjeto[carregado,1]*InfoObjeto[carregado,2],na.rm=TRUE)
+  desperdicio<-placa[1]*placa[2]-AreaUtilizada
+  return(list(desperdicio,carregado))
+}
+
+restoAreaInfo(SolMelhor) #menor desperdício e objetos carregados
+InfoObjeto[SolMelhor,] #ordem de entrada dos objetos
+
+#gráfico
+library(ggplot2)
+graf <- data.frame(
+  x0 = c(12,7,1,13,7,8,1,0,8,6,0,2,0,0),
+  y0 = c(0,0,0,6,6,8,8,0,13,13,13,17,17,19),
+  x1 = c(16,12,7,16,13,13,8,1,16,8,6,6,2,2),
+  y1 = c(6,6,8,13,8,12,13,5,20,20,17,20,19,20),
+  sequencia=as.factor(SolMelhor[c(1:14)])
+)
+
+ggplot(graf, aes(xmin = x0, xmax = x1, ymin = y0, ymax = y1)) +
+  geom_rect(aes(fill = sequencia))+
+xlab("Largura") + 
+  ylab("Comprimento")+
+scale_fill_discrete(name="Melhor\nsolução",
+breaks=c("14","9","8","1","13","3","4","10","7","5", "15","2","12","11"),
+labels=c("14","9","8","1","13","3","4","10","7","5", "15","2","12","11")) +
+theme(axis.title.x = element_text(size=16),axis.title.y = element_text(size=16),
+axis.text.x  = element_text(size=16),axis.text.y = element_text(size=16),
+legend.text = element_text(size = 15),legend.title=element_text(size=15))
+  
